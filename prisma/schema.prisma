@@ -1,0 +1,400 @@
+// Prisma Schema for Storelect - E-Commerce Électrique & Outillage Pro
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------
+// ENUMS
+// ------------------------------------------------------
+
+enum Role {
+  CUSTOMER
+  PRO
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  PAYMENT_FAILED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum AddressType {
+  SHIPPING
+  BILLING
+  BOTH
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ------------------------------------------------------
+// USER & AUTHENTICATION
+// ------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  passwordHash  String?
+  image         String?
+  role          Role      @default(CUSTOMER)
+  
+  // Champs spécifiques aux professionnels / électriciens
+  companyName   String?
+  vatNumber     String?   // N° TVA Intracommunautaire
+  siret         String?
+  phone         String?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  orders        Order[]
+  addresses     Address[]
+  reviews       Review[]
+  cart          Cart?
+  wishlistItems WishlistItem[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ------------------------------------------------------
+// CATALOG & PRODUCTS
+// ------------------------------------------------------
+
+model Category {
+  id            String        @id @default(cuid())
+  name          String
+  slug          String        @unique
+  description   String?       @db.Text
+  icon          String?       // Lucide icon identifier
+  image         String?
+  sortOrder     Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  subCategories SubCategory[]
+  products      Product[]
+
+  @@index([slug])
+}
+
+model SubCategory {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?   @db.Text
+  categoryId  String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  products    Product[]
+
+  @@index([slug])
+  @@index([categoryId])
+}
+
+model Product {
+  id                     String                @id @default(cuid())
+  name                   String
+  slug                   String                @unique
+  sku                    String                @unique // Référence fabricant (ex: SCH-A9F74116)
+  barcode                String?               // Code EAN-13
+  description            String                @db.Text
+  shortDescription       String?
+  
+  // Tarification en centimes (évite les erreurs de virgule flottante)
+  priceInCents           Int                   // Prix TTC (ex: 2490 = 24.90€)
+  compareAtPriceInCents  Int?                  // Prix barré éventuel
+  costPriceInCents       Int?                  // Prix d'achat fournisseur (pour l'admin)
+  taxRate                Float                 @default(20.0) // TVA 20%
+  
+  stock                  Int                   @default(0)
+  lowStockThreshold      Int                   @default(5)
+  isPublished            Boolean               @default(true)
+  isFeatured             Boolean               @default(false)
+  images                 String[]              // Tableau d'URLs d'images
+  
+  categoryId             String
+  subCategoryId          String?
+  
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+
+  // Relations
+  category               Category              @relation(fields: [categoryId], references: [id])
+  subCategory            SubCategory?          @relation(fields: [subCategoryId], references: [id])
+  specification          ProductSpecification?
+  orderItems             OrderItem[]
+  reviews                Review[]
+  cartItems              CartItem[]
+  wishlistItems          WishlistItem[]
+
+  @@index([slug])
+  @@index([sku])
+  @@index([categoryId])
+  @@index([isPublished, isFeatured])
+}
+
+// Spécifications techniques dédiées pour le matériel électrique
+model ProductSpecification {
+  id                       String   @id @default(cuid())
+  productId                String   @unique
+  product                  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  brand                    String   // Ex: Schneider Electric, Legrand, Fluke, Knipex, Wago
+  modelNumber              String?
+  voltage                  String?  // Ex: "230V", "400V Triphasé", "12V-24V DC"
+  amperage                 String?  // Ex: "10A", "16A", "32A", "63A"
+  wattage                  String?  // Ex: "1500W", "3680W"
+  frequency                String?  // Ex: "50/60 Hz"
+  ipRating                 String?  // Ex: "IP20", "IP44", "IP65", "IP68"
+  ikRating                 String?  // Ex: "IK08" (résistance aux chocs)
+  curveType                String?  // Ex: "Courbe C", "Courbe D" (disjoncteurs)
+  polesCount               String?  // Ex: "1P+N", "3P+N", "4P"
+  differentialSensitivity  String?  // Ex: "30mA", "300mA"
+  cableCrossSection        String?  // Ex: "1.5mm²", "2.5mm²", "6mm²", "10mm² - 25mm²"
+  certification            String?  // Ex: "NF / CE / VDE"
+  material                 String?  // Ex: "Cuivre sans oxygène", "Thermoplastique ignifuge"
+  weightKg                 Float?
+  warrantyYears            Int      @default(2)
+  countryOfOrigin          String?  // Ex: "France", "Allemagne"
+  extraSpecs               Json?    // Spécifications additionnelles en JSON clé/valeur
+
+  @@index([brand])
+  @@index([voltage])
+  @@index([amperage])
+  @@index([ipRating])
+}
+
+// ------------------------------------------------------
+// ADDRESSES
+// ------------------------------------------------------
+
+model Address {
+  id                String      @id @default(cuid())
+  userId            String?
+  user              User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              AddressType @default(SHIPPING)
+
+  firstName         String
+  lastName          String
+  company           String?
+  vatNumber         String?
+  street1           String
+  street2           String?
+  city              String
+  postalCode        String
+  country           String      @default("FR")
+  phone             String?
+
+  isDefaultShipping Boolean     @default(false)
+  isDefaultBilling  Boolean     @default(false)
+
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  shippingOrders    Order[]     @relation("ShippingAddress")
+  billingOrders     Order[]     @relation("BillingAddress")
+
+  @@index([userId])
+}
+
+// ------------------------------------------------------
+// ORDERS & CHECKOUT
+// ------------------------------------------------------
+
+model Order {
+  id                    String        @id @default(cuid())
+  orderNumber           String        @unique // Ex: STL-2026-0001
+  
+  userId                String?
+  user                  User?         @relation(fields: [userId], references: [id])
+  
+  customerEmail         String
+  customerName          String
+  customerPhone         String?
+
+  status                OrderStatus   @default(PENDING)
+  paymentStatus         PaymentStatus @default(UNPAID)
+  
+  stripePaymentIntentId String?       @unique
+  stripeSessionId       String?       @unique
+
+  // Montants en centimes
+  subtotalInCents       Int
+  taxInCents            Int
+  shippingFeeInCents    Int           @default(0)
+  totalInCents          Int
+  currency              String        @default("DZD")
+
+  shippingAddressId     String?
+  shippingAddress       Address?      @relation("ShippingAddress", fields: [shippingAddressId], references: [id])
+  
+  billingAddressId      String?
+  billingAddress        Address?      @relation("BillingAddress", fields: [billingAddressId], references: [id])
+
+  trackingNumber        String?
+  carrier               String?       // Ex: "Chronopost", "DPD", "Colissimo"
+  notes                 String?       @db.Text
+
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  items                 OrderItem[]
+
+  @@index([orderNumber])
+  @@index([userId])
+  @@index([status])
+  @@index([stripePaymentIntentId])
+}
+
+model OrderItem {
+  id               String   @id @default(cuid())
+  orderId          String
+  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  productId        String?
+  product          Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  // Snapshot immuable au moment de l'achat
+  productName      String
+  sku              String
+  unitPriceInCents Int
+  quantity         Int
+  totalInCents     Int
+  snapshotSpecs    Json?    // Snapshot des specs techniques au moment de la commande
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+// ------------------------------------------------------
+// REVIEWS & SOCIAL PROOF
+// ------------------------------------------------------
+
+model Review {
+  id                 String       @id @default(cuid())
+  productId          String
+  product            Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  userId             String
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  rating             Int          // Note de 1 à 5
+  title              String?
+  comment            String       @db.Text
+  isVerifiedPurchase Boolean      @default(false)
+  status             ReviewStatus @default(APPROVED)
+  helpfulCount       Int          @default(0)
+
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@unique([productId, userId]) // 1 avis par utilisateur par produit
+  @@index([productId])
+  @@index([userId])
+  @@index([rating])
+}
+
+// ------------------------------------------------------
+// SHOPPING CART & PERSISTENCE
+// ------------------------------------------------------
+
+model Cart {
+  id         String     @id @default(cuid())
+  userId     String?    @unique
+  user       User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  guestToken String?    @unique // Pour les paniers anonymes
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  items      CartItem[]
+
+  @@index([guestToken])
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cartId, productId])
+  @@index([cartId])
+  @@index([productId])
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+}

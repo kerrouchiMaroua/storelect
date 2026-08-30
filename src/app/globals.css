@@ -1,0 +1,71 @@
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+body {
+  background-color: #080C14;
+  color: #F1F5F9;
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar for Industrial UI */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0B0F19;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1E2C48;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #06B6D4;
+}
+
+/* Glassmorphism & High-tech Glows */
+.glass-panel {
+  background: rgba(15, 22, 38, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel-glow {
+  background: rgba(15, 22, 38, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(6, 182, 212, 0.25);
+  box-shadow: 0 0 25px -5px rgba(6, 182, 212, 0.15);
+}
+
+.amber-glow-hover:hover {
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 20px -3px rgba(245, 158, 11, 0.25);
+}
+
+.cyan-glow-hover:hover {
+  border-color: rgba(6, 182, 212, 0.5);
+  box-shadow: 0 0 20px -3px rgba(6, 182, 212, 0.25);
+}
+
+/* Technical Circuit Grid Pattern */
+.bg-circuit-grid {
+  background-image: 
+    radial-gradient(circle at 1px 1px, rgba(6, 182, 212, 0.12) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+/* Badge styling */
+.badge-tech {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: 0.05em;
+}
